@@ -1,0 +1,20 @@
+Non-functional Testing
+----------------------
+
+Q:  Describe how you would design a performance test to measure the throughput and latency of the eReceiver service under high load
+    conditions (large number of input HTTP POST requests).
+A:  Generate 100k fake events. Measure time at different points. ( time.perf_counter() ). Evaluate at queue.
+    Plot results and see where improvements are needed.
+
+Q:  Give examples of performance testing tools that could be relevant for this task
+A:  Jmeter, Apache Bench, Python requests, but probably python as I have more control.
+
+Q:  Enumerate some performance metrics that you would monitor during the performance test run
+A:  Request latency, request processing, prepare response, return response
+
+
+Write a Python script which can generate 100 valid eReceiver JSON Data Cloud Event with random combinations data.status ,
+data.type and data.hash values. Values must adhere to the constraints described in the eReceiver Functional Specifications
+section Payload Validation.
+
+Can use python faker or roll my own with `random` package.

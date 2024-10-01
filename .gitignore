@@ -1,0 +1,6 @@
+# ignore all hidden files
+.*
+# except
+!.gitignore
+
+__pycache__

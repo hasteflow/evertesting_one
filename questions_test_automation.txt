@@ -1,0 +1,34 @@
+# Test Automation
+
+Q:  [Python] Using Python, write a script to send valid and invalid POST requests to the eReceiver service endpoint.
+    Include checks for expected responses and error logs.
+A:  Done.
+
+Q:  [Docker] Explain how the log file /var/log/ereceiver-service.log for the eReceiver service running in a Docker container can be
+    made available on the host server in the /test/var/log host path.
+A:  Mount volume / bind volume for  /var/log/ereceiver-service.log --> /test/var/log
+
+Q:  [Linux/Bash Scripting] Using Bash scripting, create a script to monitor and validate the contents of the /var/log/ereceiver-
+    service.log file for specific error entries.
+A:  TODO: write command like `tail -f /var/log/ereceiver-service.log | grep ERROR` and make it a command.sh. run it with ./command.sh
+    Can complicate things more, but parsing log files can be done with other utilities / scripts.
+
+Q:  [Linux/Bash Scripting] Create a Bash script to automate the deployment and teardown of the Docker containers for these services.
+A:  TODO: Makefile scripts for basic project commands. Docker images and docker-compose files for setting up dependencies and network
+
+Q:  [Docker] Explain how you would use Docker logs to verify that each service is operating correctly.
+A:  Add more useful logging information. use `docker logs -f | grep <hash_id>`. Each service should provide log messages based
+    on hash ids for steps. Using above command would filter for the request.
+    Automated integration tests are preferable for development and also sanity checks for this system.
+
+Q:  [Linux/Bash Scripting] Explain how you would change the value of VALIDATION_WINDOW_MS environment variable for the eValidator service
+A:  Add asyncio task to read environment variable every 5-10 minutes. Variable can be stored somewhere else if needed. This will ensure
+    services does need restart for this adjustment.
+
+Q:  [Docker] Explain how you would configure Docker Compose to ensure proper network communication between
+    the eReceiver, eProcessor, and eValidator services and the Data Broker.
+A:  Enforce dependency of containers ( start order ), map ports properly, naming hosts and optional create a private network.
+
+Q:  [Integration Testing] Describe how you would set up an end-to-end integration test to verify the complete data flow from eReceiver to
+    eProcessor and eValidator. Include steps to validate the final state of the database and the Data Broker.
+A:  Use in-memory database for eProcessor. Query database based on events. Check / spoof queues for testing.

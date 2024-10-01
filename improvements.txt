@@ -1,0 +1,4 @@
+* awkward loading of modules for test from endpoints / models for eReceiver
+* only redirecting errors to error_log is not useful. redirect everything and grep by error
+* improve openapi docs for fastapi eReceiver
+* add logging information through all services

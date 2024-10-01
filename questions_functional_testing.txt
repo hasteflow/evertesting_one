@@ -1,0 +1,77 @@
+# Functional Testing
+
+1. eReceiver Service
+--------------------
+
+Q:  How would you validate that the /api/v1/data endpoint correctly accepts and processes valid HTTP POST requests?
+A:  Wrote automated test with pytest. Make different requests for POST with different payloads.
+
+Q:  How would you test the service's response to invalid payloads and check that the error is properly logged in /var/log/receiver-service.log ?
+A:  Docker start entrypoint can start the service as `python main.py 2>&1 | tee -a /var/log/receiver-service.log`
+    By default, when developing everything is printed to stdout.
+
+Q:  Describe the steps to verify that valid data is correctly transformed into a Cloud Event JSON object and published to the Data Broker
+A:  Use python package for cloud events. This package is tested and does not need any more validation.
+
+Q:  Give an example of a valid HTTP POST request payload for the eReceiver service and the output Cloud Event JSON
+A:  @pytest.fixture
+    def task_valid_payload(self):
+        return {
+            "status": "ComPlETe",
+            "type": 11,
+            "hash": "661f8009fa8e56a9d0e94a0a644397d7",
+        }
+
+    CloudEvent object.
+    While it's not the same spec as in test, package maintainers debated the format of this event on github
+    with mixed feelings about one format or the other. This was used in the python module, so it's a different format.
+    {
+    "attributes": {
+        "type": "com.evertest.event",
+        "source": "evalidator",
+        "subject": "ERROR",
+        "datacontenttype": "application/json",
+        "specversion": "1.0",
+        "id": "9ff47c83-05a3-449b-b9f5-0f8d74480de5",
+        "time": "2024-10-01T22:05:18.342090+00:00",
+    },
+    "data": {
+        "status": "complete",
+        "type": 11,
+        "hash": "661f8009fa8e56a9d0e94a0a644397d7",
+        },
+    }
+
+2. eProcessor Service
+---------------------
+
+Q:  How would you test the service's ability to correctly query the database for existing entries based on the data.hash value?
+A:  Generate event for queue, intercept SQL result / create in-memory database for this test. ( patched credentials )
+
+Q:  Describe how you would verify that the service updates existing entries with new data.status and data.type valuers
+A:  Generate event, query in-memory database.
+
+Q:  Explain the process to test the creation of new database entries when no matching data.hash value is found.
+A:  Query in-memory database
+
+3. eValidator Service
+---------------------
+
+Q:  How would you ensure that the service correctly identifies and processes events with matching data.hash values within the configurable time-frame ( VALIDATION_WINDOW_MS )?
+A:  Generate different events, get the VALIDATION_WINDOW_MS, monkey patch on_message or part of program.
+
+Q:  Describe how you would test the condition where the sum of data.type values is greater than or equal to 10 and verify that a CloudEvent with "subject": "ERROR" is published
+A:  Generate events with sum data.type >= 10 and intercept queue payload. assert payload correctly
+
+Q:  Explain how you would validate that no action is taken when the sum of data.type values is less than 10
+A:  Generate events, check queue / intercept with monkey patching
+
+3. Test Coverage
+----------------
+
+Q:  List 3 to 5 Test Cases that you would perform on the proposed services to increase test coverage from a functional point of view.
+    Add objectives, test steps and expected outputs.
+        - install coverage and evaluate the report ( exact lines that need to be tested can be seen )
+        - write tests based on coverage report
+        - write tests for things that should not happen / unexpected behaviour
+        - write integration tests for whole service
