@@ -1,6 +1,11 @@
-# ignore all hidden files
+# ignore all hidden files ( .venv, .vscode, etc. )
 .*
+
 # except
 !.gitignore
 
+# python cache files
 __pycache__
+
+# sqlite databases
+*.db
