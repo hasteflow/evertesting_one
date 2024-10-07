@@ -22,4 +22,4 @@ APP_EVENT_ATTRIBUTES = {
 
 # have it as timedelta for explicitness
 # TODO: change to reading from environ
-VALIDATION_WINDOW_MS = timedelta(milliseconds=1000)
+VALIDATION_WINDOW_MS = timedelta(milliseconds=10000)

@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import aiormq
 import aiormq.abc
-from cloudevents.conversion import to_json
+from cloudevents.conversion import from_json, to_dict
 from cloudevents.http import CloudEvent
 from settings import (
     APP_AMQP,
@@ -31,76 +31,84 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-# store incoming tasks for processing
-tasks_map = {}
+
+connection, channel = None, None
+# store incoming events for processing
+events_map = {}
+
+
+def get_json_event(event):
+    return json.dumps(to_dict(event))
 
 
 async def publish_to_error_queue(messages):
-    event = CloudEvent(APP_EVENT_ATTRIBUTES, messages)
+    global connection, channel
 
-    # TODO: sucks for reliability and ack
-    connection = await aiormq.connect(APP_AMQP["url"])
-    channel = await connection.channel()
-    await channel.basic_publish(to_json(event), routing_key=APP_AMQP["routing_key"])
+    if connection is None or channel is None:
+        logger.error(f"Invalid connection or channel {connection=}, {channel=}")
+        return
+
+    event = CloudEvent(APP_EVENT_ATTRIBUTES, messages)
+    json_payload = get_json_event(event)
+    logger.debug(
+        f"Publishing to error queue:`{APP_AMQP['routing_key']}`, event:`{json_payload}`"
+    )
+    await channel.basic_publish(
+        json_payload.encode("utf-8"), routing_key=APP_AMQP["routing_key"]
+    )
 
 
 async def on_message(message: aiormq.abc.DeliveredMessage):
-    """
-    NOTE: sqlite calls are blocking, but have no performance hit here
-    """
-    logger.debug(f"received on_message: {message}")
+    global channel
 
     try:
-        payload = json.loads(message.body)
-        data = payload["data"]
-        data_received = datetime.now(timezone.utc)
+        event = from_json(CloudEvent, data=message.body)
+        logger.debug(f"Received event:`{event}`")
+
+        data = event.get_data()
         data_hash = data["hash"]
-        data["received"] = data_received
+        data["received"] = datetime.now(timezone.utc)
 
         # https://wiki.python.org/moin/TimeComplexity#:~:text=is%20a%20list.-,dict,-The%20Average%20Case
         # same time complexity in vs get for dict
-        previous_data = tasks_map.get(data_hash)
-        logger.debug("1" * 50)
-        logger.debug(tasks_map)
-        if previous_data:
-            # inside validation window
-            logger.debug("2" * 50)
-            if data_received - previous_data["received"] <= VALIDATION_WINDOW_MS:
-                logger.debug("3" * 50)
-                if data_received["type"] + previous_data["type"] >= 10:
-                    logger.debug("4" * 50)
-                    # delete received information from items
-                    del data["received"]
-                    del previous_data["received"]
-                    await publish_to_error_queue([data_received, previous_data])
-            else:
-                logger.debug("5" * 50)
-                # overwrite previous hashes?
-                tasks_map[data_hash] = data
-        else:
-            logger.debug("6" * 50)
-            tasks_map[data_hash] = data
+        previous_data = events_map.get(data_hash)
 
+        if previous_data:
+            # overwrite previous hashes with fresh data
+            events_map[data_hash] = data
+
+            # inside validation window
+            if data["received"] - previous_data["received"] <= VALIDATION_WINDOW_MS:
+                if data["type"] + previous_data["type"] >= 10:
+                    # avoid mutation
+                    item_1 = {**previous_data}
+                    item_2 = {**data}
+                    # remove received timestamp from dicts
+                    _, _ = item_1.pop("received", None), item_2.pop("received", None)
+                    await publish_to_error_queue([item_1, item_2])
+        else:
+            events_map[data_hash] = data
+
+    except KeyError as e:
+        logger.error(f"KeyError occurred: {e}")
     except Exception as e:
-        logger.debug("7" * 50)
-        logger.error(f"Exception occurred: {e}")
+        logger.error(f"Exception occurred: {e}, {type(e)}")
+        # do not confirm the message on error
+        await channel.basic_nack(message.delivery_tag)
+        return
+
+    await channel.basic_ack(message.delivery_tag)
 
 
 async def set_up_queues():
-    """
-    TODO: make this work
-    asyncio loop hangs after 1 iteration
-    with no explicit Exception... probably aiormq thing
-    """
+    global connection, channel
 
-    # Perform connection
+    # Perform connection and create channel
     connection = await aiormq.connect(APP_AMQP["url"])
-
-    # Creating a channel
     channel = await connection.channel()
-    # Declaring queue
-    declare_ok = await channel.queue_declare(APP_AMQP["error_queue_name"], durable=True)
-    # declare_ok = await channel.queue_declare(APP_AMQP["queue_name"], durable=True)
+
+    # Bind queues and settings
+    await channel.queue_bind(APP_AMQP["error_queue_name"], APP_AMQP["exchange_name"])
     await channel.queue_bind(APP_AMQP["queue_name"], APP_AMQP["exchange_name"])
     await channel.basic_qos(prefetch_count=1)
 
@@ -109,7 +117,8 @@ async def set_up_queues():
 
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     loop.run_until_complete(set_up_queues())
 
     # we enter a never-ending loop that waits for data and runs

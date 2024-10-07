@@ -13,6 +13,8 @@ from sqlite3 import IntegrityError, OperationalError
 
 import aiormq
 import aiormq.abc
+from cloudevents.conversion import from_json, to_dict
+from cloudevents.http import CloudEvent
 from settings import APP_AMQP, APP_DATABASE_NAME, APP_LOG_LEVEL, APP_LOG_NAME
 
 logger = logging.getLogger(__name__)
@@ -25,10 +27,12 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+connection, channel = None, None
+
 
 def upsert_item(data):
-    connection = sqlite3.connect(APP_DATABASE_NAME)
-    cursor = connection.cursor()
+    db_connection = sqlite3.connect(APP_DATABASE_NAME)
+    cursor = db_connection.cursor()
 
     """
     upserting because anything else feels wrong
@@ -44,25 +48,37 @@ def upsert_item(data):
         """,
         data,
     )
-    connection.commit()
+    db_connection.commit()
 
 
 async def on_message(message: aiormq.abc.DeliveredMessage):
     """
     NOTE: sqlite calls are blocking, but have no performance hit here
     """
+    global connection, channel
+    if connection is None or channel is None:
+        logger.error(f"Invalid connection or channel {connection=}, {channel=}")
+        return
+
+    logger.debug(f"Received message:`{message}`")
 
     try:
-        data = json.loads(message.body)
-        upsert_item(data.get("data"))
+        event = from_json(CloudEvent, data=message.body)
+        upsert_item(event.get_data())
+        await channel.basic_ack(message.delivery_tag)
+        return
 
     except (OperationalError, IntegrityError) as e:
         logger.error(f"Exception database occurred: {e}")
     except Exception as e:
         logger.error(f"Exception occurred: {e}")
 
+    await channel.basic_nack(message.delivery_tag)
+
 
 async def main():
+    global connection, channel
+
     # Perform connection
     connection = await aiormq.connect(APP_AMQP["url"])
 
@@ -101,7 +117,8 @@ def set_up_database():
 if __name__ == "__main__":
     set_up_database()
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     loop.run_until_complete(main())
 
     # we enter a never-ending loop that waits for data and runs

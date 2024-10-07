@@ -22,7 +22,7 @@ APP_EVENT_ATTRIBUTES = {
 APP_AMQP = {
     "url": "amqp://guest:guest@localhost//",
     "queue_names": {
-        "eProcessor": "eProcessor_queue",
+        "eProcessor": "ePublisher_queue",
         "eValidator": "eValidator_queue",
     },
     "exchange_name": "eExchange",
