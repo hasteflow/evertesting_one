@@ -5,6 +5,7 @@ description = ""
 authors = ["razvan.blaga <razvan.paul.blaga@gmail.com>"]
 readme = "README.md"
 
+
 [tool.poetry.dependencies]
 python = "^3.12"
 fastapi = "^0.115.0"
