@@ -6,7 +6,8 @@ APP_LOG_NAME = "eValidator"
 APP_LOG_LEVEL = logging.DEBUG
 
 APP_AMQP = {
-    "url": "amqp://guest:guest@localhost//",
+    # "url": "amqp://guest:guest@localhost//",
+    "url": "amqp://user:user@rabbitmq:5672//",
     "queue_name": "eValidator_queue",
     "error_queue_name": "eValidator_queue_ERROR",
     "routing_key": "eValidator-ERROR",
