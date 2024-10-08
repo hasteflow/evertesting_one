@@ -1,0 +1,40 @@
+services:
+  rabbitmq:
+    build:
+      context: ./eRabbit
+    expose:
+      - "rabbitmq:5672"
+    ports:
+      - "127.0.0.1:15672:15672" #http
+      - "127.0.0.1:5672:5672" #amqp
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    environment:
+      RABBITMQ_USER: user
+      RABBITMQ_PASSWORD: user
+  ereceiver:
+    build:
+      context: ./eReceiver
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+  epublisher:
+    build:
+      context: ./ePublisher
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  evalidator:
+    build:
+      context: ./eValidator
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
